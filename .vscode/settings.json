@@ -1,0 +1,30 @@
+{
+  "files.encoding": "utf8",
+  "files.eol": "\n",
+  "files.trimTrailingWhitespace": true,
+  "files.insertFinalNewline": true,
+  "editor.tabSize": 2,
+  "editor.insertSpaces": true,
+  "editor.detectIndentation": false,
+  "editor.formatOnPaste": true,
+  "editor.formatOnSave": true,
+  "editor.codeActionsOnSave": {
+    "source.fixAll.eslint": true
+  },
+  "search.exclude": {
+    "**/node_modules": true,
+    "**/.yarn": true,
+    "**/.pnp.*": true,
+    "**/dist": true
+  },
+  "npm.packageManager": "yarn",
+  "typescript.validate.enable": true,
+  "typescript.referencesCodeLens.enabled": true,
+  "eslint.enable": true,
+  "eslint.format.enable": true,
+  "eslint.runtime": "node",
+  "eslint.packageManager": "yarn",
+  "markdownlint.ignore": [
+    "**/LICENSE"
+  ]
+}

@@ -1,0 +1,43 @@
+{
+  "name": "snaplogic-cache",
+  "version": "1.0.0",
+  "description": "SnapLogic Caching Worker for CloudFlare",
+  "author": "Adam Botbyl",
+  "main": "dist/index.js",
+  "private": true,
+  "keywords": [],
+  "license": "ISC",
+  "repository": "github:atxadam/snaplogic-cache",
+  "scripts": {
+    "build": "tsc",
+    "start": "wrangler dev",
+    "publish": "wrangler publish",
+    "clean": "rimraf dist/\\* tsconfig.tsbuildinfo",
+    "lint": "eslint src/**/*.{ts,tsx}",
+    "lint:fix": "yarn lint --fix",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "dependencies": {
+    "@cloudflare/workers-types": "^4.20230404.0",
+    "wrangler": "^2.17.0"
+  },
+  "devDependencies": {
+    "@tsconfig/node18": "^2.0.0",
+    "@types/node": "^18.16.3",
+    "@typescript-eslint/eslint-plugin": "^5.59.1",
+    "@typescript-eslint/parser": "^5.59.1",
+    "eslint": "^8.39.0",
+    "eslint-plugin-node": "^11.1.0",
+    "eslint-plugin-prettier": "^4.2.1",
+    "eslint-plugin-tsdoc": "^0.2.17",
+    "gts": "^3.1.1",
+    "prettier": "^2.8.8",
+    "typescript": "^5.0.4"
+  },
+  "packageManager": "yarn@3.5.0",
+  "engines": {
+    "npm": "please-use-yarn",
+    "yarn": ">= 3.5.0",
+    "node": ">= 18.12.2"
+  }
+}

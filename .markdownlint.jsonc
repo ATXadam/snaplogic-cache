@@ -1,0 +1,7 @@
+{
+  // Disable line-length errors for tables and code blocks
+  "MD013": {
+    "tables": false,
+    "code_blocks": false
+  }
+}

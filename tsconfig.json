@@ -1,0 +1,44 @@
+{
+  "$schema": "https://json.schemastore.org/tsconfig",
+  "display": "Project Defaults",
+  "extends": "@tsconfig/node18/tsconfig.json",
+  "compilerOptions": {
+    "target": "es2021",
+    "lib": [
+      "es2021"
+    ],
+    "jsx": "react",
+    "module": "es2022",
+    "allowSyntheticDefaultImports": true,
+    "types": [
+      "@cloudflare/workers-types"
+    ],
+    "sourceMap": false,
+    "isolatedModules": true,
+    "resolveJsonModule": true,
+    "outDir": "./dist/",
+    "noImplicitAny": true,
+    "tsBuildInfoFile": "tsconfig.tsbuildinfo",
+    "incremental": true,
+    "strict": true,
+    "exactOptionalPropertyTypes": true,
+    "noFallthroughCasesInSwitch": true,
+    "noImplicitOverride": true,
+    "noImplicitReturns": true,
+    "noImplicitThis": true,
+    "noPropertyAccessFromIndexSignature": true,
+    "noUncheckedIndexedAccess": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "newLine": "lf",
+    "removeComments": false,
+    "paths": {
+      "*": [
+        "./typings/*"
+      ]
+    }
+  },
+  "include": [
+    "src/**/*"
+  ]
+}
