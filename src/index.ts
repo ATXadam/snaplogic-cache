@@ -96,17 +96,22 @@ export default {
       env.targetPort = parseInt(env.targetPort.toString());
       env.ttl = parseInt(env.ttl.toString());
 
-      /** Validate we have required parameters */
-      if (!env.requireHTTPS)
+      /** Validate we have required env variables */
+      if (env.requireHTTPS === undefined)
         throw Error('requireHTTPS parameter required (true|false)');
       if (!env.targetHostname)
         throw Error('targetHostname parameter is required');
-      if (!env.targetPort || env.targetPort < 0 || env.targetPort > 65535)
+      if (
+        env.targetPort === undefined ||
+        env.targetPort < 0 ||
+        env.targetPort > 65535
+      )
         throw Error('targetPort parameter must be set from 0 to 65535');
       if (!env.targetProtocol.toLowerCase().match(/^https?$/))
         throw Error('targetUrl parameter must be either http or https');
       if (!env.ttl || env.ttl <= 0)
         throw Error('ttl parameter must be a number greater than 0');
+
       /**
        * Require Authorization header or bearer_token search parameter,
        * otherwise throw a SnapLogic like 401 response
@@ -117,6 +122,7 @@ export default {
       )
         return errorResponse(401, 'Mismatched bearer token');
 
+      /** If we have requireHTTPS enabled, validate request is HTTPS */
       if (env.requireHTTPS && new URL(request.url).protocol !== 'https:') {
         return errorResponse(426, 'HTTPS is required');
       }
