@@ -1,7 +1,7 @@
 {
   "name": "snaplogic-cache",
   "version": "1.0.0",
-  "description": "SnapLogic Caching Worker for CloudFlare",
+  "description": "CloudFlare Worker for caching SnapLogic API Responses",
   "author": "Adam Botbyl",
   "main": "dist/index.js",
   "private": true,
