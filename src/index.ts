@@ -202,9 +202,14 @@ export default {
       const error = err as Exception;
       if (error.message === 'fetch failed' && error.cause !== undefined) {
         switch (error.cause.code) {
+          case 'ENOTFOUND':
           case 'ECONNREFUSED':
+          case 'ECONNABORTED':
             return errorResponse(503, 'Service Unavailable');
           case 'ETIMEDOUT':
+          case 'ECONNRESET':
+          case 'EHOSTUNREACH':
+          case 'EAI_AGAIN':
             return errorResponse(504, 'Gateway Timeout');
           default:
             return errorResponse(502, 'Bad Gateway');
