@@ -16,6 +16,20 @@ export interface Env {
   requireHTTPS: boolean;
 }
 
+/** Define an Exception interface for error handling */
+export interface Exception extends Error {
+  cause?: ExceptionCause;
+}
+
+/** Define for an interface for error causes  */
+export interface ExceptionCause {
+  errno?: number;
+  code?: string;
+  path?: string;
+  syscall?: string;
+  stack?: string;
+}
+
 export default {
   /**
    * CloudFlare Worker fetch action handler
@@ -181,8 +195,24 @@ export default {
       /** Return what we put in cache, if exists, otherwise proxy remote response */
       return cacheResponse || response;
     } catch (err) {
+      /** Log our raw error to wrangler/Worker console */
       console.log(err);
-      return errorResponse(500, 'CF Proxy Error');
+
+      /** Try to get more meaning of the error to give better understanding to client */
+      const error = err as Exception;
+      if (error.message === 'fetch failed' && error.cause !== undefined) {
+        switch (error.cause.code) {
+          case 'ECONNREFUSED':
+            return errorResponse(503, 'Service Unavailable');
+          case 'ETIMEDOUT':
+            return errorResponse(504, 'Gateway Timeout');
+          default:
+            return errorResponse(502, 'Bad Gateway');
+        }
+      }
+
+      /** Otherwise throw generic Proxy Error */
+      return errorResponse(500, 'Proxy Error');
     }
   },
 };
