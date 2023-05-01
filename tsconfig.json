@@ -11,7 +11,8 @@
     "module": "es2022",
     "allowSyntheticDefaultImports": true,
     "types": [
-      "@cloudflare/workers-types"
+      "@cloudflare/workers-types",
+      "node"
     ],
     "sourceMap": false,
     "isolatedModules": true,

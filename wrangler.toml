@@ -2,3 +2,5 @@ name = "snaplogic-cache"
 main = "src/index.ts"
 compatibility_date = "2023-04-29"
 keep_vars = true
+// cspell:disable-next-line
+compatibility_flags = [ "nodejs_compat" ]
