@@ -49,7 +49,7 @@ To publish to CloudFlare using wrangler simply `yarn publish`
 | targetProtocol | string | Target server protocol http[s] (typically https) |
 | targetHostname | string | Target server hostname (typically elastic.snaplogic.com) |
 | targetPort | int | Target server port number (typically 443) |
-| requireHTTPS | bool | Require all requests to be HTTPS, or fail with a 426 status code |
+| requireHTTPS | bool | Require all client requests to be HTTPS, or fail with a 426 status code |
 
 ### Optional configuration parameters
 
