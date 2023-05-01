@@ -4,6 +4,7 @@
  */
 import { Buffer } from 'node:buffer';
 
+/** Define our environmental variables from CloudFlare */
 export interface Env {
   /** TTL for response cache in seconds */
   ttl: number;
@@ -15,7 +16,7 @@ export interface Env {
   targetPort: number;
   /** Target Path prefix for backend server */
   targetPathPrefix?: string;
-  /** Require HTTPS */
+  /** Require HTTPS from the Client */
   requireHTTPS: boolean;
 }
 
@@ -24,7 +25,7 @@ export interface Exception extends Error {
   cause?: ExceptionCause;
 }
 
-/** Define for an interface for error causes  */
+/** Define an interface for error causes in Exception */
 export interface ExceptionCause {
   errno?: number;
   code?: string;
@@ -38,9 +39,9 @@ export default {
    * CloudFlare Worker fetch action handler
    *
    * @param request - CloudFlare Worker Request object
-   * @param env - Env interface
+   * @param env - CloudFlare Environmental Variables
    * @param ctx - CloudFlare Worker ExecutionContext
-   * @returns - Promised CloudFlare Worker Response object
+   * @returns Promised CloudFlare Worker Response object
    */
   async fetch(
     request: Request,
@@ -76,31 +77,38 @@ export default {
     }
 
     /**
-     * Generate a key value for caching
+     * Generate a URL string for CloudFlare caching key
      *
      * @param url - Target URL
      * @param request - CloudFlare Worker Request object
-     * @returns - Promised string
+     * @returns Promised string
      */
     async function getCacheKey(url: URL, request: Request): Promise<string> {
-      /** Make our key in to a Uint8 array formatted <method>|<url>|<bodyData> */
+      /** Convert our request method and URL to Unit8Array joined by pipes */
       const keyRequest = new TextEncoder().encode(
         request.method.toUpperCase() + '|' + request.url + '|'
       );
-      const keyData = new Uint8Array(await request.arrayBuffer());
-      const keyUint8 = new Uint8Array(keyRequest.length + keyData.length);
-      keyUint8.set(keyRequest);
-      keyUint8.set(keyData, keyRequest.length);
 
-      /** SHA-256 to ArrayBuffer */
-      const hashBuffer = await crypto.subtle.digest('SHA-256', keyUint8);
+      /** Convert the body data from request ArrayBuffer to a Uint8Array */
+      const keyBody = new Uint8Array(await request.arrayBuffer());
 
-      /** Convert ArrayBuffer to SHA-256 hex string */
-      const sha256 = Buffer.from(new Uint8Array(hashBuffer)).toString('hex');
+      /** Combine our keyRequest and keyData into a Uint8Array buffer  */
+      const keyBuffer = new Uint8Array(
+        keyRequest.byteLength + keyBody.byteLength
+      );
+      keyBuffer.set(keyRequest, 0);
+      keyBuffer.set(keyBody, keyRequest.byteLength);
 
-      /** Remove pathname and add SHA256 as search parameter */
+      /** Run a SHA-256 digest on the Uint8Array outputting an ArrayBuffer */
+      const hashBuffer = await crypto.subtle.digest('SHA-256', keyBuffer);
+
+      /**
+       * Remove pathname and set the search parameter to the SHA-256
+       * digest as a hex string, generating a valid URL for caching in
+       * CloudFlare
+       */
       url.pathname = '';
-      url.search = sha256;
+      url.search = Buffer.from(hashBuffer).toString('hex');
       return url.toString();
     }
 
@@ -137,7 +145,10 @@ export default {
       )
         return errorResponse(401, 'Mismatched bearer token');
 
-      /** If we have requireHTTPS enabled, validate request is HTTPS */
+      /**
+       * If we have requireHTTPS enabled, validate request is HTTPS,
+       * otherwise throw a SnapLogic like 426 response
+       */
       if (env.requireHTTPS && new URL(request.url).protocol !== 'https:') {
         return errorResponse(426, 'HTTPS is required');
       }
@@ -174,7 +185,7 @@ export default {
       /** If we have a cache, return it */
       if (cacheResponse) return cacheResponse;
 
-      /** Send to target */
+      /** Fetch request from target */
       const response = await fetch(new Request(targetUrl, request));
 
       /** If we get a 200 OK then cache */
@@ -188,20 +199,26 @@ export default {
         });
 
         /** Set our cache-control header, remove expires */
-        cacheResponse.headers.set('cache-control', `max-age=${env.ttl}`);
+        cacheResponse.headers.set('cache-control', 'max-age=' + env.ttl);
         cacheResponse.headers.delete('expires');
 
         /** Cache the response before context ends */
         ctx.waitUntil(cache.put(cacheKey, cacheResponse.clone()));
       }
 
-      /** Return what we put in cache, if exists, otherwise proxy remote response */
+      /**
+       * Return what we put in cache, if exists, otherwise proxy remote
+       * response
+       */
       return cacheResponse || response;
     } catch (err) {
-      /** Log our raw error to wrangler/Worker console */
+      /** Log our raw error to wrangler/CloudFlare Worker console */
       console.log(err);
 
-      /** Try to get more meaning of the error to give better understanding to client */
+      /**
+       * If this was a fetch error, try to get a more descriptive
+       * cause of the error to give a better response to client
+       */
       const error = err as Exception;
       if (error.message === 'fetch failed' && error.cause !== undefined) {
         switch (error.cause.code) {
@@ -220,7 +237,7 @@ export default {
         }
       }
 
-      /** Otherwise throw generic Proxy Error */
+      /** Otherwise return a generic 500 Proxy Error */
       return errorResponse(500, 'Proxy Error');
     }
   },
