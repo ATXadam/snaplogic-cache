@@ -41,6 +41,8 @@ To publish to CloudFlare using wrangler simply `yarn publish`
 - If running locally, create and set variables in [.dev.vars](.dev.vars)
 - If running in production, set the following variables in the Project->Settings->Variables
 
+### Required configuration parameters
+
 | Parameter | Type | Description |
 | --- | --- | --- |
 | ttl | int | Time To Live in cache, must be greater than 0
@@ -48,6 +50,12 @@ To publish to CloudFlare using wrangler simply `yarn publish`
 | targetHostname | string | Target server hostname (typically elastic.snaplogic.com) |
 | targetPort | int | Target server port number (typically 443) |
 | requireHTTPS | bool | Require all requests to be HTTPS, or fail with a 426 status code |
+
+### Optional configuration parameters
+
+| Parameter | Type | Description |
+| --- | --- | --- |
+| targetPathPrefix | string | Prefixes a path to the target URL for URL shortening |
 
 ## Basic [yarn](https://yarnpkg.com) Scripts
 
