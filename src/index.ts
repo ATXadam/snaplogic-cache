@@ -2,6 +2,7 @@
 /**
  * CloudFlare Worker for caching SnapLogic API Responses
  */
+import { Buffer } from 'node:buffer';
 
 export interface Env {
   /** TTL for response cache in seconds */
@@ -12,6 +13,8 @@ export interface Env {
   targetHostname: string;
   /** Target Port for backend server */
   targetPort: number;
+  /** Target Path prefix for backend server */
+  targetPathPrefix?: string;
   /** Require HTTPS */
   requireHTTPS: boolean;
 }
@@ -82,7 +85,7 @@ export default {
     async function getCacheKey(url: URL, request: Request): Promise<string> {
       /** Make our key in to a Uint8 array formatted <method>|<url>|<bodyData> */
       const keyRequest = new TextEncoder().encode(
-        [request.method.toUpperCase(), request.url, ''].join('|')
+        request.method.toUpperCase() + '|' + request.url + '|'
       );
       const keyData = new Uint8Array(await request.arrayBuffer());
       const keyUint8 = new Uint8Array(keyRequest.length + keyData.length);
@@ -93,9 +96,7 @@ export default {
       const hashBuffer = await crypto.subtle.digest('SHA-256', keyUint8);
 
       /** Convert ArrayBuffer to SHA-256 hex string */
-      const sha256 = [...new Uint8Array(hashBuffer)]
-        .map((byte) => byte.toString(16).padStart(2, '0'))
-        .join('');
+      const sha256 = Buffer.from(new Uint8Array(hashBuffer)).toString('hex');
 
       /** Remove pathname and add SHA256 as search parameter */
       url.pathname = '';
@@ -121,7 +122,7 @@ export default {
         env.targetPort > 65535
       )
         throw Error('targetPort parameter must be set from 0 to 65535');
-      if (!env.targetProtocol.toLowerCase().match(/^https?$/))
+      if (!env.targetProtocol.match(/^https?$/i))
         throw Error('targetUrl parameter must be either http or https');
       if (!env.ttl || env.ttl <= 0)
         throw Error('ttl parameter must be a number greater than 0');
@@ -150,6 +151,8 @@ export default {
       targetUrl.protocol = env.targetProtocol;
       targetUrl.hostname = env.targetHostname;
       targetUrl.port = env.targetPort.toString();
+      if (env.targetPathPrefix)
+        targetUrl.pathname = env.targetPathPrefix + targetUrl.pathname;
 
       /** Get our cache key */
       const cacheKey = await getCacheKey(new URL(targetUrl), request.clone());
@@ -207,6 +210,7 @@ export default {
           case 'ECONNABORTED':
             return errorResponse(503, 'Service Unavailable');
           case 'ETIMEDOUT':
+          case 'UND_ERR_CONNECT_TIMEOUT':
           case 'ECONNRESET':
           case 'EHOSTUNREACH':
           case 'EAI_AGAIN':
