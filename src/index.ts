@@ -18,6 +18,8 @@ export interface Env {
   targetPathPrefix?: string;
   /** Require HTTPS from the Client */
   requireHTTPS: boolean;
+  /** Allow Binary body data from the Client */
+  allowBinaryData: boolean;
 }
 
 /** Define an Exception interface for error handling */
@@ -118,6 +120,8 @@ export default {
         env.requireHTTPS = env.requireHTTPS.toString() === 'true';
       env.targetPort = parseInt(env.targetPort.toString());
       env.ttl = parseInt(env.ttl.toString());
+      if (env.allowBinaryData !== undefined)
+        env.allowBinaryData = env.allowBinaryData.toString() === 'true';
 
       /** Validate we have required env variables */
       if (env.requireHTTPS === undefined)
@@ -135,6 +139,9 @@ export default {
       if (!env.ttl || env.ttl <= 0)
         throw Error('ttl parameter must be a number greater than 0');
 
+      /** Set a default for binaryData to false if not defined */
+      if (env.allowBinaryData === undefined) env.allowBinaryData = false;
+
       /**
        * Require Authorization header or bearer_token search parameter,
        * otherwise throw a SnapLogic like 401 response
@@ -151,6 +158,67 @@ export default {
        */
       if (env.requireHTTPS && new URL(request.url).protocol !== 'https:') {
         return errorResponse(426, 'HTTPS is required');
+      }
+
+      /**
+       * Ensure our request data is valid.
+       *
+       * Method must be POST, PUT, PATCH, HEAD, GET or DELETE
+       *
+       * If there is a body and allowBinaryData is not set,
+       * the request must have a Content-Type of
+       *  - application/json
+       *  - application/x-www-form-urlencoded
+       * and be method POST, PUT or PATCH
+       *
+       * If we have a body and JSON content-type, validate the data is in fact
+       * JSON otherwise pass through the data as no validation is required.
+       *
+       * Without these validations SnapLogic will throw a 500 error with no
+       * message. Data that does not conform to this will error in SnapLogic
+       * with no current way to catch it and return a custom response.
+       */
+      if (
+        !request.method.toUpperCase().match(/^POST|PUT|PATCH|HEAD|GET|DELETE$/)
+      )
+        return errorResponse(405, 'Method not allowed');
+
+      if (request.body !== null) {
+        /** Request must be POST, PUT or PATCH if there is data */
+        if (!request.method.toUpperCase().match(/^(POST|PUT|PATCH)$/))
+          return errorResponse(406, 'Body data not expected');
+
+        if (!env.allowBinaryData) {
+          /** Find our applicable content-type */
+          const contentTypeMatch = (
+            request.headers.get('content-type') || ''
+          ).match(/^application\/(x-www-form-urlencoded|json)(;.*)?$/);
+
+          /** If we did not match a valid content-type, return error */
+          if (!contentTypeMatch)
+            return errorResponse(
+              406,
+              'Content-Type not acceptable for request type'
+            );
+
+          /** If content-type is JSON, ensure the payload is valid */
+          if (contentTypeMatch[1] === 'json') {
+            try {
+              await request.clone().json();
+            } catch (e) {
+              return errorResponse(400, 'JSON body not valid');
+            }
+          }
+
+          /**
+           * Form data is parsable as it's a KV pair, no matter what
+           * the payload, so no validation applicable
+           */
+        }
+      } else {
+        /** If we have method that should have data and we have none, error */
+        if (request.method.toUpperCase().match(/^(POST|PUT|PATCH)$/))
+          return errorResponse(406, 'Body data expected');
       }
 
       /** Setup our cache */
