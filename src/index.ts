@@ -188,11 +188,18 @@ export default {
         if (!request.method.toUpperCase().match(/^(POST|PUT|PATCH)$/))
           return errorResponse(406, 'Body data not expected');
 
+        const contentType = request.headers.get('content-type') || '';
+        if (!contentType)
+          return errorResponse(
+            406,
+            'Content-Type is required for request type'
+          );
+
         if (!env.allowBinaryData) {
           /** Find our applicable content-type */
-          const contentTypeMatch = (
-            request.headers.get('content-type') || ''
-          ).match(/^application\/(x-www-form-urlencoded|json)(;.*)?$/);
+          const contentTypeMatch = contentType.match(
+            /^application\/(x-www-form-urlencoded|json)(;.*)?$/
+          );
 
           /** If we did not match a valid content-type, return error */
           if (!contentTypeMatch)
