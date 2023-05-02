@@ -56,6 +56,7 @@ To publish to CloudFlare using wrangler simply `yarn publish`
 | Parameter | Type | Description |
 | --- | --- | --- |
 | targetPathPrefix | string | Prefixes a path to the target URL for URL shortening |
+| allowBinaryData | bool | Allows binary POST, PUT, PATCH data, defaults to false |
 
 ## Basic [yarn](https://yarnpkg.com) Scripts
 
