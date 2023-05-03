@@ -13,3 +13,6 @@ targetPort = 443
 requireHTTPS = true
 allowBinaryData = false
 requestTimeout = 100
+
+[dev]
+local_protocol = "https"
