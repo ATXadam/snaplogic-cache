@@ -20,6 +20,8 @@ export interface Env {
   requireHTTPS: boolean;
   /** Allow Binary body data from the Client */
   allowBinaryData: boolean;
+  /** Fetch Request Timeout in Seconds */
+  requestTimeout: number;
 }
 
 /** Define an Exception interface for error handling */
@@ -34,6 +36,21 @@ export interface ExceptionCause {
   path?: string;
   syscall?: string;
   stack?: string;
+}
+
+/** Define an interface to handle JSON errors from SnapLogic */
+export interface PipelineError {
+  http_status_code?: number;
+  response_map?: {
+    error_list?: PipelineErrorList[];
+  };
+  threads?: [];
+}
+
+/** SnapLogic error error_list array */
+export interface PipelineErrorList {
+  message?: string;
+  http_status_code?: number;
 }
 
 export default {
@@ -122,10 +139,11 @@ export default {
       env.ttl = parseInt(env.ttl.toString());
       if (env.allowBinaryData !== undefined)
         env.allowBinaryData = env.allowBinaryData.toString() === 'true';
+      env.requestTimeout = parseInt(
+        env.requestTimeout ? env.requestTimeout.toString() : ''
+      );
 
       /** Validate we have required env variables */
-      if (env.requireHTTPS === undefined)
-        throw Error('requireHTTPS parameter required (true|false)');
       if (!env.targetHostname)
         throw Error('targetHostname parameter is required');
       if (
@@ -138,9 +156,18 @@ export default {
         throw Error('targetUrl parameter must be either http or https');
       if (!env.ttl || env.ttl <= 0)
         throw Error('ttl parameter must be a number greater than 0');
+      if (env.requestTimeout < 0)
+        throw Error('requestTimeout parameter must be a number greater than 0');
 
-      /** Set a default for binaryData to false if not defined */
+      /** Set a default for binaryData to false */
       if (env.allowBinaryData === undefined) env.allowBinaryData = false;
+
+      /** Set a default for requestTimeout to 100 */
+      if (isNaN(env.requestTimeout) || env.requestTimeout === 0)
+        env.requestTimeout = 100;
+
+      /** Set a default for requireHTTPS to true */
+      if (env.requireHTTPS === undefined) env.requireHTTPS = true;
 
       /**
        * Require Authorization header or bearer_token search parameter,
@@ -260,8 +287,30 @@ export default {
       /** If we have a cache, return it */
       if (cacheResponse) return cacheResponse;
 
-      /** Fetch request from target */
-      const response = await fetch(new Request(targetUrl, request));
+      /** Build our re-written request */
+      const targetRequest = new Request(targetUrl, request);
+
+      /**
+       * If we get a basic Snap Logic error, or have a binary output
+       * view with SnapLogic and send a Accept-Encoding request, the
+       * return will be plaintext, uncompressed data, with no
+       * Content-Encoding header to signify that this was dropped.
+       */
+      targetRequest.headers.delete('accept-encoding');
+
+      /**
+       * Fetch request from target, setup a promise race to timeout if
+       * request response takes longer than requestTimeout - 1 seconds
+       */
+      const response = (await Promise.race([
+        fetch(targetRequest),
+        new Promise((resolve) =>
+          setTimeout(
+            () => resolve(errorResponse(504, 'Gateway Timeout')),
+            (env.requestTimeout - 1) * 1000
+          )
+        ),
+      ])) as Response;
 
       /** If we get a 200 OK then cache */
       if (response.status === 200) {
@@ -279,12 +328,77 @@ export default {
 
         /** Cache the response before context ends */
         ctx.waitUntil(cache.put(cacheKey, cacheResponse.clone()));
+      } else {
+        if (
+          (response.headers.get('content-type') || '') === 'application/json'
+        ) {
+          let json: PipelineError;
+          try {
+            json = await response.clone().json();
+          } catch (err) {
+            /**
+             * If the content-type says it's JSON but can't parse, wrap the text
+             * into an errorMessage. This helps for if the response snap says
+             */
+            try {
+              return errorResponse(response.status, await response.text());
+            } catch (err) {
+              /**
+               * There was an encoding/decoding failure with fetch and we
+               * couldn't get the body text; this happens if accepted-encoding
+               * is gzip and the pipeline errors out. This should never occur
+               * due to the request having it's accepted-encoding header
+               * stripped before fetch
+               */
+              return errorResponse(500, 'Error decoding response from server');
+            }
+          }
+
+          /**
+           * If there is an exit snap, there will be a unexpected
+           * error message
+           */
+          if (json.threads) return errorResponse(500, 'Pipeline exited');
+
+          /**
+           * If there was a blank error from the server, identify it better
+           */
+          if (
+            json.response_map &&
+            json.response_map.error_list &&
+            json.response_map.error_list[0]?.message === ''
+          ) {
+            return errorResponse(
+              response.status,
+              'Server returned empty response error message'
+            );
+          }
+
+          /**
+           * If there is a pipeline view error, SnapLogic responds with a
+           * nested error, un-nest and get real message
+           */
+          if (
+            json.response_map &&
+            json.response_map.error_list &&
+            json.response_map?.error_list[0]?.http_status_code
+          ) {
+            const nestedError = json.response_map
+              .error_list[0] as PipelineError;
+            if (
+              nestedError.response_map &&
+              nestedError.response_map.error_list &&
+              nestedError.response_map.error_list[0]?.message
+            ) {
+              return errorResponse(
+                json.http_status_code || 500,
+                nestedError.response_map.error_list[0]?.message
+              );
+            }
+          }
+        }
       }
 
-      /**
-       * Return what we put in cache, if exists, otherwise proxy remote
-       * response
-       */
       return cacheResponse || response;
     } catch (err) {
       /** Log our raw error to wrangler/CloudFlare Worker console */
@@ -303,6 +417,7 @@ export default {
             return errorResponse(503, 'Service Unavailable');
           case 'ETIMEDOUT':
           case 'UND_ERR_CONNECT_TIMEOUT':
+          case 'UND_ERR_HEADERS_TIMEOUT':
           case 'ECONNRESET':
           case 'EHOSTUNREACH':
           case 'EAI_AGAIN':
