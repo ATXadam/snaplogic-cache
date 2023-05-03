@@ -4,3 +4,12 @@ compatibility_date = "2023-04-29"
 keep_vars = true
 # // cspell:disable-next-line
 compatibility_flags = [ "nodejs_compat" ]
+
+[vars]
+ttl = 60
+targetProtocol = "https"
+targetHostname = "elastic.snaplogic.com"
+targetPort = 443
+requireHTTPS = true
+allowBinaryData = false
+requestTimeout = 100
