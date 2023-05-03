@@ -45,11 +45,10 @@ To publish to CloudFlare using wrangler simply `yarn publish`
 
 | Parameter | Type | Description |
 | --- | --- | --- |
-| ttl | int | Time To Live in cache, must be greater than 0
-| targetProtocol | string | Target server protocol http[s] (typically https) |
-| targetHostname | string | Target server hostname (typically elastic.snaplogic.com) |
-| targetPort | int | Target server port number (typically 443) |
-| requireHTTPS | bool | Require all client requests to be HTTPS, or fail with a 426 status code |
+| ttl | int | Time To Live in cache, must be greater than 0, defaults to 60 |
+| targetProtocol | string | Target server protocol http[s], defaults to https |
+| targetHostname | string | Target server hostname, defaults to elastic.snaplogic.com |
+| targetPort | int | Target server port number, defaults to 443 |
 
 ### Optional configuration parameters
 
@@ -57,6 +56,20 @@ To publish to CloudFlare using wrangler simply `yarn publish`
 | --- | --- | --- |
 | targetPathPrefix | string | Prefixes a path to the target URL for URL shortening |
 | allowBinaryData | bool | Allows binary POST, PUT, PATCH data, defaults to false |
+| requireHTTPS | bool | Require all client requests to be HTTPS, or fail with a 426 status code, defaults to true |
+| requestTimeout | int | Maximum lifetime of request session in seconds, defaults to 100 |
+
+## Timeouts
+
+SnapLogic has a maximum execution time of 900 seconds, while [CloudFlare has
+the following](https://developers.cloudflare.com/support/troubleshooting/cloudflare-errors/troubleshooting-cloudflare-5xx-errors/#error-524-a-timeout-occurred):
+
+- Free Plan: 100 seconds
+- Enterprise Plan: Up to 6000 seconds
+
+The application parameter `requestTimeout` controls how long a fetch can take,
+with a default of 100 seconds to accommodate for the free plan. Change this parameter
+to accommodate your use case.
 
 ## Basic [yarn](https://yarnpkg.com) Scripts
 
