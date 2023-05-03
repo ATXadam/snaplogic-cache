@@ -4,7 +4,7 @@
     {
       "type": "node",
       "request": "launch",
-      "name": "Launch App",
+      "name": "Launch App (local-only)",
       "cwd": "${workspaceFolder}",
       "skipFiles": [
         "<node_internals>/**"
@@ -12,7 +12,20 @@
       "runtimeExecutable": "yarn",
       "runtimeArgs": [
         "start",
-        "-l"
+        "--local=true"
+      ]
+    },
+    {
+      "type": "node",
+      "request": "launch",
+      "name": "Launch App (Online)",
+      "cwd": "${workspaceFolder}",
+      "skipFiles": [
+        "<node_internals>/**"
+      ],
+      "runtimeExecutable": "yarn",
+      "runtimeArgs": [
+        "start"
       ]
     }
   ]
