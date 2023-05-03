@@ -13,7 +13,7 @@ export interface Env {
   /** Target Hostname for backend server */
   targetHostname: string;
   /** Target Port for backend server */
-  targetPort?: number;
+  targetPort: number;
   /** Target Path prefix for backend server */
   targetPathPrefix?: string;
   /** Require HTTPS from the Client */
@@ -135,28 +135,34 @@ export default {
       /** Ensure our env variables are typed correctly */
       if (env.requireHTTPS !== undefined)
         env.requireHTTPS = env.requireHTTPS.toString() === 'true';
-      env.targetPort = parseInt(
-        env.targetPort ? env.targetPort.toString() : ''
-      );
-      env.ttl = parseInt(env.ttl ? env.ttl.toString() : '');
+      env.targetPort =
+        parseInt(env.targetPort ? env.targetPort.toString() : '-1') || -1;
+      env.ttl = parseInt(env.ttl ? env.ttl.toString() : '0') || 0;
       if (env.allowBinaryData !== undefined)
         env.allowBinaryData = env.allowBinaryData.toString() === 'true';
 
       /** Set requestTimeout to 100 if not defined in configuration */
-      env.requestTimeout = parseInt(
-        env.requestTimeout ? env.requestTimeout.toString() : '100'
-      );
+      env.requestTimeout =
+        parseInt(env.requestTimeout ? env.requestTimeout.toString() : '100') ||
+        0;
 
       /** Validate we have required env variables */
-      if (!env.targetHostname)
+      if (typeof env.targetHostname !== 'string' || !env.targetHostname)
         throw Error('targetHostname parameter is required');
-      if (isNaN(env.targetPort) || env.targetPort < 0 || env.targetPort > 65535)
+      if (
+        typeof env.targetPort !== 'number' ||
+        env.targetPort < 0 ||
+        env.targetPort > 65535
+      )
         throw Error('targetPort parameter must be a number from 0 to 65535');
-      if (!env.targetProtocol || !env.targetProtocol.match(/^https?$/i))
-        throw Error('targetUrl parameter must be either http or https');
-      if (isNaN(env.ttl) || env.ttl <= 0)
+      if (
+        typeof env.targetProtocol !== 'string' ||
+        !['http', 'https'].includes((env.targetProtocol || '').toLowerCase())
+      )
+        throw Error('targetProtocol parameter must be either http or https');
+      if (typeof env.ttl !== 'number' || env.ttl <= 0)
         throw Error('ttl parameter must be a number greater than 0');
-      if (isNaN(env.requestTimeout) || env.requestTimeout < 0)
+      if (typeof env.requestTimeout !== 'number' || env.requestTimeout <= 0)
         throw Error('requestTimeout parameter must be a number greater than 0');
 
       /** Set a default for binaryData to false */
@@ -201,54 +207,61 @@ export default {
        * message. Data that does not conform to this will error in SnapLogic
        * with no current way to catch it and return a custom response.
        */
-      if (
-        !request.method.toUpperCase().match(/^POST|PUT|PATCH|HEAD|GET|DELETE$/)
-      )
-        return errorResponse(405, 'Method not allowed');
+      switch (request.method.toUpperCase()) {
+        case 'PUT':
+        case 'PATCH':
+        case 'POST':
+          /** Ensure we have body data and a content-length greater than 0 */
+          if (
+            !request.body ||
+            (parseInt(request.headers.get('content-length') || '0') || 0) <= 0
+          )
+            return errorResponse(406, 'Body data expected');
 
-      if (request.body !== null) {
-        /** Request must be POST, PUT or PATCH if there is data */
-        if (!request.method.toUpperCase().match(/^(POST|PUT|PATCH)$/))
-          return errorResponse(406, 'Body data not expected');
-
-        const contentType = request.headers.get('content-type') || '';
-        if (!contentType)
-          return errorResponse(
-            406,
-            'Content-Type is required for request type'
-          );
-
-        if (!env.allowBinaryData) {
-          /** Find our applicable content-type */
-          const contentTypeMatch = contentType.match(
-            /^application\/(x-www-form-urlencoded|json)(;.*)?$/
-          );
-
-          /** If we did not match a valid content-type, return error */
-          if (!contentTypeMatch)
+          /** Ensure we have a Content-Type header */
+          if (!request.headers.get('content-type'))
             return errorResponse(
               406,
-              'Content-Type not acceptable for request type'
+              'Content-Type is required for request type'
             );
 
-          /** If content-type is JSON, ensure the payload is valid */
-          if (contentTypeMatch[1] === 'json') {
-            try {
-              await request.clone().json();
-            } catch (e) {
-              return errorResponse(400, 'JSON body not valid');
-            }
-          }
+          if (!env.allowBinaryData) {
+            /** Find our applicable Content-Type */
+            const contentTypeMatch = (
+              request.headers.get('content-type') || ''
+            ).match(/^application\/(x-www-form-urlencoded|json)(;.*)?$/);
 
-          /**
-           * Form data is parsable as it's a KV pair, no matter what
-           * the payload, so no validation applicable
-           */
-        }
-      } else {
-        /** If we have method that should have data and we have none, error */
-        if (request.method.toUpperCase().match(/^(POST|PUT|PATCH)$/))
-          return errorResponse(406, 'Body data expected');
+            /** If we did not match a valid Content-Type, return error */
+            if (!contentTypeMatch)
+              return errorResponse(
+                406,
+                'Content-Type not acceptable for request type'
+              );
+
+            /** If content-type is JSON, ensure the payload is valid */
+            if (contentTypeMatch[1] === 'json') {
+              try {
+                await request.clone().json();
+              } catch (e) {
+                return errorResponse(400, 'JSON body not valid');
+              }
+            }
+
+            /**
+             * No need to check x-www-form-urlencoded data as it's a KV
+             * parsed pair
+             */
+          }
+          break;
+        case 'HEAD':
+        case 'GET':
+        case 'DELETE':
+          /** Ensure these requests do not have data or a content-length */
+          if (request.body || request.headers.get('content-length'))
+            return errorResponse(406, 'Body data not expected');
+          break;
+        default:
+          return errorResponse(405, 'Method not allowed');
       }
 
       /** Setup our cache */
@@ -298,7 +311,7 @@ export default {
        * Fetch request from target, setup a promise race to timeout if
        * request response takes longer than requestTimeout - 1 seconds
        */
-      const response = (await Promise.race([
+      const response = await Promise.race([
         fetch(targetRequest),
         new Promise((resolve) =>
           setTimeout(
@@ -306,8 +319,8 @@ export default {
             // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
             (env.requestTimeout! - 1) * 1000
           )
-        ),
-      ])) as Response;
+        ) as Promise<Response>,
+      ]);
 
       /** If we get a 200 OK then cache */
       if (response.status === 200) {
@@ -322,6 +335,13 @@ export default {
         /** Set our cache-control header, remove expires */
         cacheResponse.headers.set('cache-control', 'max-age=' + env.ttl);
         cacheResponse.headers.delete('expires');
+
+        /**
+         * SnapLogic sets Content-Encoding to gzip even though we did not
+         * ask for it, remove it so we don't send gzip content to a client
+         * that did not ask for it
+         */
+        cacheResponse.headers.delete('content-encoding');
 
         /** Cache the response before context ends */
         ctx.waitUntil(cache.put(cacheKey, cacheResponse.clone()));
@@ -344,10 +364,10 @@ export default {
             } catch (err) {
               /**
                * There was an encoding/decoding failure with fetch and we
-               * couldn't get the body text; this happens if accepted-encoding
-               * is gzip and the pipeline errors out. This should never occur
-               * due to the request having it's accepted-encoding header
-               * stripped before fetch
+               * couldn't get the body text; this happens if the request
+               * Accept-Encoding is gzip and the pipeline errors out.
+               * This should never occur due to the request having it's
+               * Accept-Encoding header stripped before fetch
                */
               return errorResponse(500, 'Error decoding response from server');
             }
