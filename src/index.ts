@@ -13,15 +13,15 @@ export interface Env {
   /** Target Hostname for backend server */
   targetHostname: string;
   /** Target Port for backend server */
-  targetPort: number;
+  targetPort?: number;
   /** Target Path prefix for backend server */
   targetPathPrefix?: string;
   /** Require HTTPS from the Client */
-  requireHTTPS: boolean;
+  requireHTTPS?: boolean;
   /** Allow Binary body data from the Client */
-  allowBinaryData: boolean;
+  allowBinaryData?: boolean;
   /** Fetch Request Timeout in Seconds */
-  requestTimeout: number;
+  requestTimeout?: number;
 }
 
 /** Define an Exception interface for error handling */
@@ -135,36 +135,32 @@ export default {
       /** Ensure our env variables are typed correctly */
       if (env.requireHTTPS !== undefined)
         env.requireHTTPS = env.requireHTTPS.toString() === 'true';
-      env.targetPort = parseInt(env.targetPort.toString());
-      env.ttl = parseInt(env.ttl.toString());
+      env.targetPort = parseInt(
+        env.targetPort ? env.targetPort.toString() : ''
+      );
+      env.ttl = parseInt(env.ttl ? env.ttl.toString() : '');
       if (env.allowBinaryData !== undefined)
         env.allowBinaryData = env.allowBinaryData.toString() === 'true';
+
+      /** Set requestTimeout to 100 if not defined in configuration */
       env.requestTimeout = parseInt(
-        env.requestTimeout ? env.requestTimeout.toString() : ''
+        env.requestTimeout ? env.requestTimeout.toString() : '100'
       );
 
       /** Validate we have required env variables */
       if (!env.targetHostname)
         throw Error('targetHostname parameter is required');
-      if (
-        env.targetPort === undefined ||
-        env.targetPort < 0 ||
-        env.targetPort > 65535
-      )
-        throw Error('targetPort parameter must be set from 0 to 65535');
-      if (!env.targetProtocol.match(/^https?$/i))
+      if (isNaN(env.targetPort) || env.targetPort < 0 || env.targetPort > 65535)
+        throw Error('targetPort parameter must be a number from 0 to 65535');
+      if (!env.targetProtocol || !env.targetProtocol.match(/^https?$/i))
         throw Error('targetUrl parameter must be either http or https');
-      if (!env.ttl || env.ttl <= 0)
+      if (isNaN(env.ttl) || env.ttl <= 0)
         throw Error('ttl parameter must be a number greater than 0');
-      if (env.requestTimeout < 0)
+      if (isNaN(env.requestTimeout) || env.requestTimeout < 0)
         throw Error('requestTimeout parameter must be a number greater than 0');
 
       /** Set a default for binaryData to false */
       if (env.allowBinaryData === undefined) env.allowBinaryData = false;
-
-      /** Set a default for requestTimeout to 100 */
-      if (isNaN(env.requestTimeout) || env.requestTimeout === 0)
-        env.requestTimeout = 100;
 
       /** Set a default for requireHTTPS to true */
       if (env.requireHTTPS === undefined) env.requireHTTPS = true;
@@ -307,7 +303,8 @@ export default {
         new Promise((resolve) =>
           setTimeout(
             () => resolve(errorResponse(504, 'Gateway Timeout')),
-            (env.requestTimeout - 1) * 1000
+            // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+            (env.requestTimeout! - 1) * 1000
           )
         ),
       ])) as Response;
