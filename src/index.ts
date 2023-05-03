@@ -68,7 +68,7 @@ export default {
     ctx: ExecutionContext
   ): Promise<Response> {
     /**
-     * Generate a SnapLogic-Like JSON response with status code
+     * Generate a SnapLogic-like JSON response with status code
      *
      * @param status_code - HTTP status code to return
      * @param message - JSON message to return
@@ -171,7 +171,7 @@ export default {
 
       /**
        * Require Authorization header or bearer_token search parameter,
-       * otherwise throw a SnapLogic like 401 response
+       * otherwise throw a SnapLogic-like 401 response
        */
       if (
         !request.headers.get('authorization') &&
@@ -181,7 +181,7 @@ export default {
 
       /**
        * If we have requireHTTPS enabled, validate request is HTTPS,
-       * otherwise throw a SnapLogic like 426 response
+       * otherwise throw a SnapLogic-like 426 response
        */
       if (env.requireHTTPS && new URL(request.url).protocol !== 'https:') {
         return errorResponse(426, 'HTTPS is required');
@@ -192,13 +192,13 @@ export default {
        *
        * Method must be POST, PUT, PATCH, HEAD, GET or DELETE
        *
-       * If there is a body and allowBinaryData is not set,
-       * the request must have a Content-Type of
+       * If the method is POST, PUT or PATCH with a body and
+       * allowBinaryData is not set, the request must have
+       * a Content-Type of:
        *  - application/json
        *  - application/x-www-form-urlencoded
-       * and be method POST, PUT or PATCH
        *
-       * If we have a body and JSON content-type, validate the data is in fact
+       * If we have a body and JSON Content-Type, validate the data is in fact
        * JSON otherwise pass through the data as no validation is required.
        *
        * Without these validations SnapLogic will throw a 500 error with no
@@ -337,8 +337,10 @@ export default {
             json = await response.clone().json();
           } catch (err) {
             /**
-             * If the content-type says it's JSON but can't parse, wrap the text
-             * into an errorMessage. This helps for if the response snap says
+             * If the Content-Type says it's JSON but can't parse, wrap the text
+             * into an errorMessage. This helps if the response snap responds with
+             * a Content-Type of application/json with a text body of
+             * "Pipeline execution failed or was aborted"
              */
             try {
               return errorResponse(response.status, await response.text());
@@ -356,7 +358,7 @@ export default {
 
           /**
            * If there is an exit snap, there will be a unexpected
-           * error message
+           * error message body, change this to a proper error response
            */
           if (json.threads) return errorResponse(500, 'Pipeline exited');
 
@@ -381,7 +383,7 @@ export default {
           if (
             json.response_map &&
             json.response_map.error_list &&
-            json.response_map?.error_list[0]?.http_status_code
+            json.response_map.error_list[0]?.http_status_code
           ) {
             const nestedError = json.response_map
               .error_list[0] as PipelineError;
@@ -391,7 +393,7 @@ export default {
               nestedError.response_map.error_list[0]?.message
             ) {
               return errorResponse(
-                json.http_status_code || 500,
+                nestedError.http_status_code || json.http_status_code || 500,
                 nestedError.response_map.error_list[0]?.message
               );
             }
@@ -409,7 +411,7 @@ export default {
        * cause of the error to give a better response to client
        */
       const error = err as Exception;
-      if (error.message === 'fetch failed' && error.cause !== undefined) {
+      if (error.message === 'fetch failed' && error.cause !== undefined)
         switch (error.cause.code) {
           case 'ENOTFOUND':
           case 'ECONNREFUSED':
@@ -425,7 +427,6 @@ export default {
           default:
             return errorResponse(502, 'Bad Gateway');
         }
-      }
 
       /** Otherwise return a generic 500 Proxy Error */
       return errorResponse(500, 'Proxy Error');
